@@ -13,26 +13,13 @@ class StatsPage extends StatefulWidget {
 class _StatsPageState extends State<StatsPage> {
   String format = "∀";
 
-  /// ルリグごとに色固定
-  final Map<String, Color> colorMap = {};
+  Color lrigColor(String name) {
+    final hash = name.hashCode;
+    final hue = ((hash * 137) % 360 + 360) % 360;
+    const saturation = 0.6;
+    const lightness = 0.5;
 
-  Color getColor(String key) {
-    if (colorMap.containsKey(key)) return colorMap[key]!;
-
-    final colors = [
-      Colors.indigo,
-      Colors.blue,
-      Colors.red,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-      Colors.teal,
-      Colors.pink,
-    ];
-
-    final color = colors[colorMap.length % colors.length];
-    colorMap[key] = color;
-    return color;
+    return HSLColor.fromAHSL(1.0, hue.toDouble(), saturation, lightness).toColor();
   }
 
   /// データ取得
@@ -76,7 +63,22 @@ class _StatsPageState extends State<StatsPage> {
     final used = countBy(box, true);
     final opp = countBy(box, false);
     final winMap = winData(box);
-    final entries = winMap.entries.toList();
+    final entries = winMap.entries.toList()
+      ..sort((a, b) {
+        final winA = a.value["win"]!;
+        final totalA = a.value["total"]!;
+        final rateA = totalA == 0 ? 0 : winA / totalA;
+
+        final winB = b.value["win"]!;
+        final totalB = b.value["total"]!;
+        final rateB = totalB == 0 ? 0 : winB / totalB;
+
+        // 勝率優先 → 同率なら試合数
+        final cmp = rateB.compareTo(rateA);
+        if (cmp != 0) return cmp;
+
+        return totalB.compareTo(totalA);
+      });
 
     return SingleChildScrollView(
       key: ValueKey(format),
@@ -113,7 +115,6 @@ class _StatsPageState extends State<StatsPage> {
 
   /// 円グラフ
   Widget buildPie(String title, Map<String, int> data) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final total = data.values.fold<int>(0, (a, b) => a + b);
 
     return Card(
@@ -133,7 +134,7 @@ class _StatsPageState extends State<StatsPage> {
                     final percent = total == 0 ? 0.0 : (e.value / total * 100);
                     return PieChartSectionData(
                       value: percent.toDouble(),
-                      color: getColor(e.key),
+                      color: lrigColor(e.key),
                       radius: 65,
                       title: "${e.key}\n${percent.toStringAsFixed(1)}%",
                       titleStyle: const TextStyle(fontSize: 12, color: Colors.white),
@@ -152,7 +153,6 @@ class _StatsPageState extends State<StatsPage> {
   Widget buildBar(
       List<MapEntry<String, Map<String, int>>> entries,
       Map<String, Map<String, int>> winMap) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Card(
       child: Padding(
@@ -163,7 +163,7 @@ class _StatsPageState extends State<StatsPage> {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             SizedBox(
-              height: 240,
+              height: 260,
               child: BarChart(
                 BarChartData(
                   maxY: 100,
@@ -176,7 +176,9 @@ class _StatsPageState extends State<StatsPage> {
                           "${value.toInt()}%",
                           style: TextStyle(
                               fontSize: 10,
-                              color: isDark ? Colors.white70 : Colors.black87),
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white70
+                                  : Colors.black87),
                         ),
                       ),
                     ),
@@ -186,10 +188,28 @@ class _StatsPageState extends State<StatsPage> {
                         getTitlesWidget: (value, meta) {
                           final i = value.toInt();
                           if (i >= entries.length) return const SizedBox();
+                          // 下部はルリグ名
                           return Padding(
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(entries[i].key,
                                 style: const TextStyle(fontSize: 10)),
+                          );
+                        },
+                      ),
+                    ),
+                    topTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          final i = value.toInt();
+                          if (i >= entries.length) return const SizedBox();
+                          // 上位5位はTier1〜Tier5、それ以降は数字表示
+                          final label = i < 5 ? "Tier${i + 1}" : "$i";
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text(label,
+                                style: const TextStyle(
+                                    fontSize: 10, fontWeight: FontWeight.bold)),
                           );
                         },
                       ),
@@ -221,7 +241,7 @@ class _StatsPageState extends State<StatsPage> {
                       barRods: [
                         BarChartRodData(
                           toY: rate.toDouble(),
-                          color: getColor(name),
+                          color: lrigColor(name),
                           width: 18,
                           borderRadius: BorderRadius.circular(8),
                         ),
