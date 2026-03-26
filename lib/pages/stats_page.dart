@@ -20,7 +20,12 @@ class _StatsPageState extends State<StatsPage> {
   const saturation = 0.6;
   const lightness = 0.5;
 
-  return HSLColor.fromAHSL(1.0, hue, saturation, lightness).toColor();
+  return HSLColor.fromAHSL(
+    1.0,
+    hue.toDouble(),
+    saturation,
+    lightness
+  ).toColor();
 }
 
   /// データ取得
